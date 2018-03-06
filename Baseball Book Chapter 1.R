@@ -94,3 +94,18 @@ BB3 %>% filter(yearID <= 1909)  %>%
 BB3 %>% filter(yearID >= 2000)  %>%
   summarise(CR_rate = sum(CG)/sum(GS))
 
+db <- dbConnect(SQLite(), dbname = "~/baseball/databases//Retrosheet1990s.sqlite")
+dbListTables(db)
+dbListFields(db,"all1998")
+#pull data i need
+
+HR_Race <- dbGetQuery(db, "SELECT GAME_ID, BAT_ID, EVENT_TX
+                            FROM all1991
+                           WHERE BAT_ID = 'sosas001' or BAT_ID = 'mcgwm001'") 
+#close DB
+dbDisconnect(db)
+
+table(HR_Race$EVENT_TX)
+
+
+view(HR_Race)
