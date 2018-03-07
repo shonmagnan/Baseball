@@ -2,9 +2,10 @@ library(tidyverse)
 library(descr)
 library(DataExplorer)
 library(sqldf)
+library(stringr)
 
 #connect to DB
-db <- dbConnect(SQLite(), dbname = "Lahman.sqlite")
+db <- dbConnect(SQLite(), dbname = "~/baseball/databases/Lahman.sqlite")
 #pull data i need
 BB1 <- dbGetQuery(db, "SELECT yearID, teamID, HR, SO, G 
                        FROM Teams 
@@ -44,11 +45,10 @@ ggplot(data = HR_table2, aes(x = yearID, y = HRperG, group = 1)) +
   geom_line() +
   geom_point()
 
-
 #need to multiple by 2 as this is a TEAM per game and I need a total game (so 2 teams)
 
 #question 2
-db <- dbConnect(SQLite(), dbname = "Lahman.sqlite")
+db <- dbConnect(SQLite(), dbname = "~/baseball/databases/Lahman.sqlite")
 dbListFields(db, "Teams")
 
 #pull data i need for question 2
@@ -77,7 +77,7 @@ ggplot(data = BB3, aes(x = yearID, y = RS_diff, group = 1)) +
 
 
 #question 3
-db <- dbConnect(SQLite(), dbname = "Lahman.sqlite")
+db <- dbConnect(SQLite(), dbname = "~/baseball/databases/Lahman.sqlite")
 dbListFields(db, "Pitching")
 
 #pull data i need for question 2
@@ -94,18 +94,92 @@ BB3 %>% filter(yearID <= 1909)  %>%
 BB3 %>% filter(yearID >= 2000)  %>%
   summarise(CR_rate = sum(CG)/sum(GS))
 
-db <- dbConnect(SQLite(), dbname = "~/baseball/databases//Retrosheet1990s.sqlite")
-dbListTables(db)
-dbListFields(db,"all1998")
-#pull data i need
+#1998 HR Race
 
-HR_Race <- dbGetQuery(db, "SELECT GAME_ID, BAT_ID, EVENT_TX
-                            FROM all1991
+db <- dbConnect(SQLite(), dbname = "~/baseball/databases/Retrosheet1990s.sqlite")
+dbListFields(db,"all1998")
+HR_Race <- dbGetQuery(db, "SELECT GAME_ID, BAT_ID, EVENT_TX, EVENT_CD
+                           FROM all1998
                            WHERE BAT_ID = 'sosas001' or BAT_ID = 'mcgwm001'") 
-#close DB
 dbDisconnect(db)
 
-table(HR_Race$EVENT_TX)
+#split apart GAME_ID
+HR_Race <- HR_Race %>% mutate(park = str_sub(GAME_ID, 1,3)) %>%
+            mutate(date = str_sub(GAME_ID,4,11)) %>%
+            mutate(date_yr = str_sub(GAME_ID,4,7)) %>%
+            mutate(date_mth = str_sub(GAME_ID,8,9)) %>%
+            mutate(date_day = str_sub(GAME_ID,10,11)) %>%
+            mutate(game_number = str_sub(GAME_ID,12,12))
 
+#create first table for graph
+mth_table <- HR_Race %>% filter(EVENT_CD == 23) %>%   #Event_CD = 23 is HR
+  group_by(BAT_ID, date_mth) %>%
+  summarize(., count = n()) %>%
+  spread(key = 'BAT_ID', value = 'count') %>%
+  mutate(sosas001 = ifelse(is.na(sosas001),0,sosas001)) %>%
+  mutate(MM_sum = cumsum(mcgwm001)) %>%
+  mutate(SS_sum = cumsum(sosas001)) %>%
+  select(date_mth, MM_sum, SS_sum)
+ 
+g <- ggplot(mth_table, aes(as.numeric(date_mth))) + 
+  geom_line(aes(y = MM_sum, colour = "Mark"), size = 1) + 
+  geom_line(aes(y = SS_sum, colour = "Sammy"), size = 1)
+g <- g + scale_x_continuous(breaks = seq(3,9,1))
+g <- g + ggtitle("1998 HR Battle: Mark vs Sammy") +
+  labs(x =  "Month", y = "Cummlative HR's")
+g
 
-view(HR_Race)
+#gather the data so it is easier to graph
+mth_table2 <- HR_Race %>% filter(EVENT_CD == 23) %>%
+  group_by(BAT_ID, date_mth) %>%
+  summarize(., count = n()) %>%
+  spread(key = 'BAT_ID', value = 'count') %>%
+  mutate(sosas001 = ifelse(is.na(sosas001),0,sosas001)) %>%
+  mutate(MM_sum = cumsum(mcgwm001)) %>%
+  mutate(SS_sum = cumsum(sosas001)) %>%
+  select(date_mth, MM_sum, SS_sum)  %>%
+  gather('MM_sum', 'SS_sum', key = 'hitter', value = "HR" ) %>%
+  mutate(hitter = factor(hitter, levels = c("MM_sum", "SS_sum"), labels = c("Mark", "Sammy"))) %>%
+  mutate(date_mth = as.numeric(date_mth))
+  
+g2 <- ggplot() + theme_bw()  +
+                geom_line(aes(y = HR, x = date_mth, color = hitter), size = 1.5, 
+                           data = mth_table2, stat = 'identity') +
+                 theme(legend.position = "bottom", legend.direction = "horizontal", legend.title = element_blank()) 
+g2 <- g2 + scale_x_continuous(breaks = seq(3, 9 ,1))
+g2 <- g2 + ggtitle("1998 HR Battle: Mark vs Sammy") +
+  labs(x =  "Month", y = "Cummlative HR's")
+colour <- c("dark red", "dark blue")
+g2 <- g2 + scale_colour_manual(values = colour)
+g2
+
+#XKCD style graph - couldn't get this to work
+library(extrafont)
+font_import()
+
+download.file("http://simonsoftware.se/other/xkcd.ttf",
+              dest = "xkcd.ttf", mode = "wb")
+system("mkdir ~/.fonts")
+system("cp xkcd.ttf  ~/.fonts")
+font_import(paths = "~/.fonts", pattern = "[X/x]kcd")
+fonts()
+loadfonts()
+
+fill <- c("#56B4E9", "#ff69b4")
+
+p1 <- ggplot() +
+  geom_line(aes(y = HR, x = date_mth, colour = hitter), size = 1.5, data = mth_table2, stat = "identity") +
+  theme(legend.position = "bottom", legend.direction = "horizontal", legend.title = element_blank()) +
+  scale_x_continuous(breaks = seq(3,9,1)) +
+  labs(x = "Months", y = "Cummlative HR's") +
+  ggtitle("1998 HR Battle: Mark vs Sammy") +
+  scale_color_manual(values = fill) +
+  theme(axis.line = element_line(size = 1, colour = "black"), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(), panel.border = element_blank(),
+        panel.background = element_blank()) +
+  theme(plot.title = element_text(family = "xkcd-Regular"), text = element_text(family = "xkcd-Regular"),
+        axis.text.x = element_text(colour = "black", size = 10),
+        axis.text.y = element_text(colour = "black", size = 10),
+        legend.key = element_rect(fill = "white", colour = "white"))
+p1
+
