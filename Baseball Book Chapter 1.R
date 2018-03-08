@@ -3,6 +3,7 @@ library(descr)
 library(DataExplorer)
 library(sqldf)
 library(stringr)
+library(lubridate)
 
 #connect to DB
 db <- dbConnect(SQLite(), dbname = "~/baseball/databases/Lahman.sqlite")
@@ -98,10 +99,12 @@ BB3 %>% filter(yearID >= 2000)  %>%
 
 db <- dbConnect(SQLite(), dbname = "~/baseball/databases/Retrosheet1990s.sqlite")
 dbListFields(db,"all1998")
-HR_Race <- dbGetQuery(db, "SELECT GAME_ID, BAT_ID, EVENT_TX, EVENT_CD
+HR_Race <- dbGetQuery(db, "SELECT GAME_ID, BAT_ID, EVENT_CD
                            FROM all1998
                            WHERE BAT_ID = 'sosas001' or BAT_ID = 'mcgwm001'") 
 dbDisconnect(db)
+
+table(HR_Race$EVENT_CD)
 
 #split apart GAME_ID
 HR_Race <- HR_Race %>% mutate(park = str_sub(GAME_ID, 1,3)) %>%
@@ -182,4 +185,103 @@ p1 <- ggplot() +
         axis.text.y = element_text(colour = "black", size = 10),
         legend.key = element_rect(fill = "white", colour = "white"))
 p1
+
+#HR's
+
+db <- dbConnect(SQLite(), dbname = "~/baseball/databases/Retrosheet_game_logs.sqlite")
+dbListFields(db,"GameLogs")
+HR_mth <- dbGetQuery(db, "SELECT Date, HomeHR, VisitorHR, ParkID
+                           FROM GameLogs
+                           WHERE Date > 19799999 and Date < 20120000") 
+dbDisconnect(db)
+
+#month HR
+HR_mth_table <- HR_mth %>%  select(-ParkID) %>%
+                            mutate(total_HR = HomeHR + VisitorHR) %>%
+                            mutate(Date = ymd(Date)) %>%
+                            mutate(Month = month(Date, label = TRUE)) %>%
+                            filter(!Month == "Mar"  ) %>%
+                            group_by(Month) %>%
+                            summarise(., mean(total_HR, na.rm = TRUE))
+HR_mth_table
+
+#park HR
+HR_park_table <- HR_mth %>% mutate(total_HR = HomeHR + VisitorHR) %>%
+                            mutate(Date = ymd(Date)) %>%
+                            mutate(Month = month(Date, label = TRUE)) %>%
+                            filter(!Month == "Mar"  ) %>%
+                            group_by(ParkID) %>%
+                            summarise(ParkN = n(),
+                                     ParkTotal = mean(total_HR, na.rm = TRUE)) %>%
+                            filter(ParkN > 400) %>%
+                            arrange(., desc(ParkTotal))
+print(HR_park_table, n = nrow(HR_park_table))
+
+#Umpires and runs
+db <- dbConnect(SQLite(), dbname = "~/baseball/databases/Retrosheet_game_logs.sqlite")
+dbListFields(db,"GameLogs")
+R_ump <- dbGetQuery(db, "SELECT Date, HomeRunsScore, VisitorRunsScored, UmpireHID
+                     FROM GameLogs
+                     WHERE Date > 19799999 and Date < 20120000") 
+dbDisconnect(db)
+
+#park HR
+R_ump_table <- R_ump %>% mutate(total_R = HomeRunsScore + VisitorRunsScored) %>%
+  mutate(Date = ymd(Date)) %>%
+  mutate(Month = month(Date, label = TRUE)) %>%
+  filter(!Month == "Mar"  ) %>%
+  group_by(UmpireHID) %>%
+  summarise(UmpireN = n(),
+            UmpireTotal = mean(total_R, na.rm = TRUE)) %>%
+  filter(UmpireN > 399) %>%
+  arrange(., desc(UmpireTotal))
+
+print(R_ump_table, n = nrow(R_ump_table))
+
+freq(R_ump_table$UmpireN, plot = F)
+
+#day of the week analysis
+db <- dbConnect(SQLite(), dbname = "~/baseball/databases/Retrosheet_game_logs.sqlite")
+dbListFields(db,"GameLogs")
+DOW <- dbGetQuery(db, "SELECT Date, DayOfWeek, Attendence
+                    FROM GameLogs
+                    WHERE Date > 19799999 and Date < 20120000") 
+dbDisconnect(db)
+
+DOW_table <- DOW %>% mutate(Date = ymd(Date)) %>%
+  mutate(Month = month(Date, label = TRUE)) %>%
+  filter(!Month == "Mar"  ) %>%
+  group_by(DayOfWeek) %>%
+  filter(Attendence > 0) %>%
+  summarise(DOWMean = mean(Attendence, na.rm = TRUE))
+DOW_table
+
+
+db <- dbConnect(SQLite(), dbname = "~/baseball/databases/Retrosheet1990s.sqlite")
+dbListFields(db,"all1998")
+HR_Race <- dbGetQuery(db, "SELECT GAME_ID, BAT_ID, EVENT_CD, BASE1_RUN_ID, BASE2_RUN_ID, BASE3_RUN_ID, SF_FL
+                      FROM all1998
+                      WHERE BAT_ID = 'sosas001' or BAT_ID = 'mcgwm001'")  
+dbDisconnect(db)
+
+HR_table <- HR_Race %>% mutate(MOB1 = ifelse(BASE1_RUN_ID == "", 0, 1)) %>%
+                        mutate(MOB2 = ifelse(BASE2_RUN_ID == "", 0, 1)) %>%
+                        mutate(MOB3 = ifelse(BASE3_RUN_ID == "", 0, 1)) %>%
+                        mutate(Total_MOB = ifelse(MOB1 + MOB2 + MOB3 > 0,1,0)) %>%
+                        mutate(HR = ifelse(EVENT_CD == 23, 1, 0)) %>%
+                        filter(!EVENT_CD %in% c(4,6,8,9,10,11)) %>%
+                        select(BAT_ID, HR,Total_MOB) %>%
+                        group_by(BAT_ID, Total_MOB) %>%
+                        summarise(AB = n(), HRs = sum(HR))
+                        
+HR_table2 <- HR_Race %>% mutate(MOB1 = ifelse(BASE1_RUN_ID == "", 0, 1)) %>%
+  mutate(MOB2 = ifelse(BASE2_RUN_ID == "", 0, 1)) %>%
+  mutate(MOB3 = ifelse(BASE3_RUN_ID == "", 0, 1)) %>%
+  mutate(Total_MOB = ifelse(MOB1 + MOB2 + MOB3 > 0,1,0)) %>%
+  mutate(HR = ifelse(EVENT_CD == 23, 1, 0)) %>%
+  filter(!EVENT_CD %in% c(4,6,8,9,10,11,14,15,16)) %>%
+  filter(SF_FL == 0) %>%
+  select(BAT_ID, HR,Total_MOB) %>%
+  group_by(BAT_ID, Total_MOB) %>%
+  summarise(AB = n(), HRs = sum(HR))
 
