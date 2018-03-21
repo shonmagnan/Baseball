@@ -285,3 +285,50 @@ HR_table2 <- HR_Race %>% mutate(MOB1 = ifelse(BASE1_RUN_ID == "", 0, 1)) %>%
   group_by(BAT_ID, Total_MOB) %>%
   summarise(AB = n(), HRs = sum(HR))
 
+#pitch seq 
+db <- dbConnect(SQLite(), dbname = "~/baseball/databases/Retrosheet2010s.sqlite")
+ps <- dbGetQuery(db, "SELECT GAME_ID, EVENT_CD, AB_FL, BALLS_CT, STRIKES_CT, PITCH_SEQ_TX
+                      FROM all2011")
+dbDisconnect(db)
+
+freq(ps$PITCH_SEQ_TX, plot = F)
+table(ps$BALLS_CT[ps$AB_FL == 1], ps$STRIKES_CT[ps$AB_FL == 1])
+
+
+
+ps_table <- ps %>% filter(AB_FL == 1)  %>%
+  mutate(H = ifelse(EVENT_CD %in% c(20,21,22,23),1,0))  %>%
+  filter((BALLS_CT == 2 & STRIKES_CT == 0) | (BALLS_CT == 0 & STRIKES_CT == 2)) %>%
+  mutate(pitch_count = ifelse(BALLS_CT == 2 & STRIKES_CT == 0, 1, 0)) %>%
+  group_by(pitch_count) %>%
+  summarise(BA = mean(H))
+
+%>% filter(AB_FL == 1) %>% 
+
+PS_table <- ps %>%
+  mutate(H = ifelse(EVENT_CD %in% c(14,15, 20,21,22,23),1,0))  %>%
+  mutate(PITCH_SEQ_TX2 = str_replace_all(PITCH_SEQ_TX, "[.>123+*N]", "")) %>%
+  mutate(PITCH_SEQ_TX2 = str_replace_all(PITCH_SEQ_TX2, "[BIPV]", "B")) %>%
+  mutate(PITCH_SEQ_TX2 = str_replace_all(PITCH_SEQ_TX2, "[CFKLMOQRST]","S")) %>%
+  mutate(First2 = str_sub(PITCH_SEQ_TX2, 1,2)) %>%
+  mutate(PC02 = ifelse(First2 == "SS", 1,0)) %>%
+  mutate(PC20 = ifelse(First2 == "BB", 1,0)) 
+
+table(PS_table$PC20)
+
+freq(PS_table$H[PS_table$PC20 == 1], plot = F )
+freq(PS_table$H[PS_table$PC02 == 1], plot = F )
+
+ps$sequence <- gsub("[.>123+*N]", "", ps$PITCH_SEQ_TX)
+ps$C20 <- grepl("^[BIPV]{2}", ps$sequence)
+
+ps_table <- ps %>% filter(AB_FL == 1)  %>%
+  mutate(H = ifelse(EVENT_CD %in% c(20,21,22,23),1,0))  %>%
+  filter((BALLS_CT == 2 & STRIKES_CT == 0) | (BALLS_CT == 0 & STRIKES_CT == 2)) %>%
+  mutate(pitch_count = ifelse(BALLS_CT == 2 & STRIKES_CT == 0, 1, 0)) %>%
+  group_by(pitch_count) %>%
+  summarise(BA = mean(H))
+
+
+
+freq(PS_table$PC02, plot = F)
