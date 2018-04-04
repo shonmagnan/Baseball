@@ -2,13 +2,15 @@ library(tidyverse)
 library(sqldf)
 library(pitchRx)
 
-db <- dbConnect(SQLite(), dbname = "Gameday.sqlite") 
-scrape(start = "2008-03-25", end = "2008-09-30", connect = db)
+db <- dbConnect(SQLite(), dbname = "~/baseball/databases/Gameday.sqlite") 
+scrape(start = "2008-01-01", end = "2008-12-31", connect = db)
 files <- c("inning/inning_hit.xml", "miniscoreboard.xml", "players.xml")
-scrape(start = "2008-03-25", end = "2008-09-30", connect = db, suffix = files)
+scrape(start = "2008-01-01", end = "2008-12-31", connect = db, suffix = files)
 
-scrape(start = "2009-04-05", end = "2009-10-06", connect = db)
-scrape(start = "2009-04-05", end = "2009-10-06", connect = db, suffix = files)
+
+scrape(start = "2009-01-01", end = "2009-12-31", connect = db)
+scrape(start = "2009-01-01", end = "2009-12-31", connect = db, suffix = files)
+
 
 scrape(start = "2010-04-04", end = "2010-10-03", connect = db)
 scrape(start = "2010-04-04", end = "2009-10-03", connect = db, suffix = files)

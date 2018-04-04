@@ -337,8 +337,108 @@ msleep %>%
 #filter_at - filtering across multiple columns
 msleep %>% 
   select(name, sleep_total:sleep_rem, brainwt:bodywt) %>% 
-  filter_at(vars(sleep_total, sleep_rem), all_vars(.>5))
+  filter_at(vars(sleep_total, sleep_rem), all_vars(. > 5))
 msleep %>% 
   select(name, sleep_total:sleep_rem, brainwt:bodywt) %>% 
-  filter_at(vars(contains("sleep")), all_vars(.>5))
+  filter_at(vars(contains("sleep")), all_vars(. > 5))
 
+###########################
+#Summarizing and slicing
+###########################
+
+#counting the number of observations
+msleep %>%
+  count(vore, sort = TRUE)
+
+#counting the number of observations with multiple vars
+msleep %>%
+  count(order, vore, sort = TRUE)
+
+#count total number of observations in the file
+msleep %>%
+  tally()
+
+#add tally variable to the file
+msleep %>%
+  select(1:3) %>%
+  add_tally()
+
+#add count variable to the file 
+msleep %>%
+  select(name:vore) %>%
+  add_count(vore)
+
+#summaries 
+msleep %>%
+  summarise(n = n(), average = mean(sleep_total), maximum = max(sleep_total))
+
+#summaries by group
+msleep %>%
+  group_by(vore) %>%
+  summarise(n = n(), average = mean(sleep_total), maximum = max(sleep_total))
+
+msleep %>%
+  group_by(vore) %>%
+  summarise(avg_sleep_day = mean(sleep_total)/24)
+
+#summarize all
+msleep %>%
+  group_by(vore) %>%
+  summarise_all(mean, na.rm = TRUE)
+
+#summarize all with a function
+msleep %>%
+  group_by(vore) %>%
+  summarise_all(~mean(., na.rm = TRUE) + 5)
+
+#summarize if with a function
+msleep %>%
+  group_by(vore) %>%
+  summarise_if(is.numeric, mean, na.rm = TRUE)
+
+msleep %>%
+  group_by(vore) %>%
+  summarise_if(is.numeric, mean, na.rm = TRUE) %>%
+  rename_if(is.numeric, ~paste0("avg_", .))
+
+msleep %>%
+  group_by(vore) %>%
+  summarise_at(vars(contains("sleep")), mean, na.rm = TRUE) %>%
+  rename_at(vars(contains("sleep")), ~paste0("avg_", .))
+
+#arranging rows
+msleep %>%
+  group_by(vore) %>%
+  summarise(avg_sleep = mean(sleep_total)) %>%
+  arrange(desc(avg_sleep))
+
+msleep %>%
+  select(order, name, sleep_total) %>%
+  group_by(order) %>%
+  arrange(desc(sleep_total), .by_group = TRUE)
+
+#showing just some of your data in the summary - top 5
+msleep %>%
+  group_by(order) %>%
+  summarise(average = mean(sleep_total)) %>%
+  top_n(5)
+
+#lowest 5
+msleep %>%
+  group_by(order) %>%
+  summarise(average = mean(sleep_total)) %>%
+  top_n(-5)
+
+#more than 1 variable
+msleep %>%
+  group_by(order) %>%
+  summarise(average_sleep = mean(sleep_total), max_sleep = max(sleep_total)) %>%
+  top_n(5, average_sleep)
+
+#sample data
+msleep %>%
+  sample_frac(.1)
+
+#user defined slice
+msleep %>%
+  slice(50:55)
