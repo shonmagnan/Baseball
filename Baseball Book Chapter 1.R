@@ -285,7 +285,7 @@ HR_table2 <- HR_Race %>% mutate(MOB1 = ifelse(BASE1_RUN_ID == "", 0, 1)) %>%
   group_by(BAT_ID, Total_MOB) %>%
   summarise(AB = n(), HRs = sum(HR))
 
-#pitch seq 
+#pitch seq   - there is something wrong in the book
 db <- dbConnect(SQLite(), dbname = "~/baseball/databases/Retrosheet2010s.sqlite")
 ps <- dbGetQuery(db, "SELECT GAME_ID, EVENT_CD, AB_FL, BALLS_CT, STRIKES_CT, PITCH_SEQ_TX
                       FROM all2011")
@@ -303,9 +303,10 @@ ps_table <- ps %>% filter(AB_FL == 1)  %>%
   group_by(pitch_count) %>%
   summarise(BA = mean(H))
 
-%>% filter(AB_FL == 1) %>% 
+
 
 PS_table <- ps %>%
+  filter(AB_FL == 1) %>% 
   mutate(H = ifelse(EVENT_CD %in% c(14,15, 20,21,22,23),1,0))  %>%
   mutate(PITCH_SEQ_TX2 = str_replace_all(PITCH_SEQ_TX, "[.>123+*N]", "")) %>%
   mutate(PITCH_SEQ_TX2 = str_replace_all(PITCH_SEQ_TX2, "[BIPV]", "B")) %>%
@@ -329,6 +330,6 @@ ps_table <- ps %>% filter(AB_FL == 1)  %>%
   group_by(pitch_count) %>%
   summarise(BA = mean(H))
 
-
-
 freq(PS_table$PC02, plot = F)
+
+
