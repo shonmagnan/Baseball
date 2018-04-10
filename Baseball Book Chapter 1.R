@@ -4,6 +4,7 @@ library(DataExplorer)
 library(sqldf)
 library(stringr)
 library(lubridate)
+library(plotly)
 
 #connect to DB
 db <- dbConnect(SQLite(), dbname = "~/baseball/databases/Lahman.sqlite")
@@ -334,4 +335,169 @@ freq(PS_table$PC02, plot = F)
 
 ##Pitchfx data
 
+db <- dbConnect(SQLite(), dbname = "~/baseball/databases/gameday.sqlite")
+
+pitch <- dbGetQuery(db, "SELECT pitch_type, start_speed, px, pz, des, num, gameday_link
+                      FROM pitch
+                      where gameday_link = 'gid_2015_05_21_slnmlb_nynmlb_1'")
+
+hit <- dbGetQuery(db, "SELECT pitcher, batter, pitcher_name, batter_name, num, gameday_link, event, stand
+                      FROM atbat
+                      where gameday_link = 'gid_2015_05_21_slnmlb_nynmlb_1'")
+
+data <- hit %>% filter(pitcher_name == "Jacob DeGrom") %>% inner_join(pitch, ., by = c("num", "gameday_link"))
+head(data)
+
+freq(data$des, plot = F)
+
+# subset the data, keeping all rows but only columns number 1 through 5 and 13
+deGrom <- data[,c(1:5, 13)]
+
+# filter for swinging strikes
+deGrom_swing <- deGrom %>% filter(des %in% c("Swinging Strike", "Called Strike")) 
+
+# plot the pitches, coloring them by velocity
+p <- ggplot(deGrom_swing, aes(px, pz, color = start_speed))
+
+# add in customized axis and legend formatting and labels
+p <- p + scale_x_continuous(limits = c(-3,3)) + 
+  scale_y_continuous(limits = c(0,5)) + 
+  annotate("rect", xmin = -1, xmax = 1, ymin = 1.5, ymax = 3.5, color = "black", alpha = 0) + 
+  labs(title = "Jacob deGrom: Swinging Strikes, 5/21/2015") + 
+  ylab("Vertical Location (ft.)") + 
+  xlab("Horizontal Location (ft): Catcher's View") + 
+  labs(color = "Velocity (mph)")
+
+# format the points
+p <- p + geom_point(size = 10, alpha = .65)
+
+# finish formatting
+p <- p + theme(axis.title = element_text(size = 15, color = "black", face = "bold")) + 
+  theme(plot.title = element_text(size = 30, face = "bold", vjust = 1)) + 
+  theme(axis.text = element_text(size = 13, face = "bold", color = "black")) + 
+  theme(legend.title = element_text(size = 12)) + 
+  theme(legend.text = element_text(size = 12))
+
+# view the plot
+p
+
+p <- ggplot(deGrom_swing, aes(px, pz, color = pitch_type))
+
+# add in customized axis and legend formatting and labels
+p <- p + scale_x_continuous(limits = c(-3,3)) + 
+  scale_y_continuous(limits = c(0,5)) + 
+  annotate("rect", xmin = -1, xmax = 1, ymin = 1.5, ymax = 3.5, color = "black", alpha = 0) + 
+  labs(title = "Jacob deGrom: Swinging Strikes, 5/21/2015") + 
+  ylab("Vertical Location (ft.)") + 
+  xlab("Horizontal Location (ft): Catcher's View") + 
+  labs(color = "Pitch Type")
+
+# format the points
+p <- p + geom_point(size = 10, alpha = .65)
+
+# finish formatting
+p <- p + theme(axis.title = element_text(size = 15, color = "black", face = "bold")) + 
+  theme(plot.title = element_text(size = 30, face = "bold", vjust = 1)) + 
+  theme(axis.text = element_text(size = 13, face = "bold", color = "black")) + 
+  theme(legend.title = element_text(size = 12)) + 
+  theme(legend.text = element_text(size = 12))
+
+# view the plot
+p
+
+#let's recreate graph from page 22
+hit <- dbGetQuery(db, "SELECT a.batter, a.batter_name, a.num, a.gameday_link, a.event AS atbat_event, a.date,
+                       p.pitch_type, p.start_speed, p.px, p.pz, p.sz_top, p.sz_bot, p.des, p.num, p.gameday_link
+                       FROM atbat a
+                       JOIN pitch p ON a.gameday_link = p.gameday_link AND a.num = p.num
+                       WHERE a.batter_name = 'Jose Bautista' AND (a.date >= 2010 AND a.date <2011) AND a.event = 'Home Run' AND p.des = 'In play, run(s)'")
+
+freq(hit$pitch_type, plot = F)
+
+hit <- data.frame(hit) %>% 
+  select(batter:sz_bot) %>%
+  mutate(pitch_type_collapsed = ifelse(
+  pitch_type %in% c("CH", "CU", "SL"), "breaking", "fastball" 
+))
+
+hit2 <- filter(hit, pitch_type_collapsed == "breaking")
+
+p <- ggplot(hit, aes(px, pz, shape = pitch_type_collapsed))
+
+# add in customized axis and legend formatting and labels
+p <- p + scale_x_continuous(limits = c(-3,3)) + 
+  scale_y_continuous(limits = c(0,5)) + 
+  annotate("rect", xmin = -1, xmax = 1, ymin = mean(hit$sz_bot), ymax = mean(hit$sz_top), color = "black", alpha = 0) + 
+  labs(title = "Jose Bautista HRs, 2010") + 
+  ylab("Vertical Location (ft.)") + 
+  xlab("Horizontal Location (ft): Catcher's View") + 
+  labs(color = "Pitch Type")
+
+# format the points
+p <- p +   geom_point(aes(shape = pitch_type_collapsed, color = start_speed), size = 3)
+
+# finish formatting
+p <- p + theme(axis.title = element_text(size = 11, color = "black", face = "bold")) + 
+  theme(plot.title = element_text(size = 15, face = "bold", vjust = 1)) + 
+  theme(axis.text = element_text(size = 10, face = "bold", color = "black")) + 
+  theme(legend.title = element_text(size = 9)) + 
+  theme(legend.text = element_text(size = 9))
+
+# view the plot
+ggplotly(p)
+
+#pulling a particular game and pitcher
+data(gids, package = "pitchRx")
+ph <- gids[grepl("sea", gids) & grepl("2012_04_21", gids)]
+
+pitch <- dbGetQuery(db, "SELECT pitch_type, start_speed, px, pz, des, num, gameday_link
+                         FROM pitch
+                          WHERE gameday_link = 'gid_2012_04_21_chamlb_seamlb_1'")
+
+hit <- dbGetQuery(db, "SELECT pitcher, batter, pitcher_name, batter_name, num, gameday_link, event, stand
+                       FROM atbat
+                       WHERE gameday_link = 'gid_2012_04_21_chamlb_seamlb_1'")
+
+data <- hit %>% filter(pitcher_name == "Philip Humber") %>% inner_join(pitch, ., by = c("num", "gameday_link"))
+head(data)
+
+
+#Q1 from Pitchfx section
+Q1 <- dbGetQuery(db, "SELECT a.batter_name, a.num, a.gameday_link, a.date,
+                      p.pitch_type
+                      FROM atbat a
+                      JOIN pitch p ON a.gameday_link = p.gameday_link AND a.num = p.num
+                      WHERE a.date >= 2008 AND a.date < 2012")
+
+#to drop non-regular season games I need to download all games and fix the gameday_link
+game <- dbGetQuery(db, "SELECT gameday_link, game_type from game")
+
+game$gameday_link <- paste("gid_",game$gameday_link, sep = "")
+Q1 <- left_join(Q1, game)
+freq(Q1$game_type, plot = F)
+
+Q1_table <- Q1 %>% select(c(game_type, batter_name, pitch_type, date)) %>% 
+  filter(game_type == "R") %>%
+  filter(!is.na(pitch_type)) %>%
+  mutate(fastball = ifelse(pitch_type %in% c("FA", "FF", "FT"), 1, 0)) %>%
+  mutate(fastball = ifelse(pitch_type %in% c("PO", "IN", "UN", "AB"), NA, fastball)) %>%
+  select(c(batter_name, fastball)) %>%
+  group_by(batter_name) %>%
+  summarise(n = n(), fastball_per = mean(fastball, na.rm = TRUE)) %>%
+  filter(n > 5000) %>%
+  arrange(desc(fastball_per))
+head(Q1_table)
+
+#Q2
+Q2 <- dbGetQuery(db, "SELECT a.pitcher_name, a.num, a.gameday_link, a.date,
+                      p.start_speed
+                      FROM atbat a
+                      JOIN pitch p ON a.gameday_link = p.gameday_link AND a.num = p.num
+                      WHERE a.date >= 2008 AND a.date < 2012")
+
+Q2_table <- Q2 %>% left_join(game) %>%
+  filter(game_type == "R") %>%
+  arrange(desc(start_speed)) %>%
+  slice(1:20)
+Q2_table
 
