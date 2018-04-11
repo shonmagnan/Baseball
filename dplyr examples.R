@@ -442,3 +442,15 @@ msleep %>%
 #user defined slice
 msleep %>%
   slice(50:55)
+
+#apply a function to a dateset 
+stats <- function(d) {
+  c.SO <- sum(d$SO, na.rm = TRUE)
+  c.BB <- sum(d$BB, na.rm = TRUE)
+  c.IPouts <- sum(d$IPouts, na.rm = TRUE)
+  c.midyear <- median(d$yearID, na.rm = TRUE)
+  data.frame(SO = c.SO, BB = c.BB, IPouts = c.IPouts, midYear = c.midyear)
+}
+
+career.pitching3 <- Pitching %>% group_by(playerID) %>%
+  do(data.frame(stats(.)))

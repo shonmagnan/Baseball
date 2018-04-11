@@ -425,7 +425,7 @@ hit2 <- filter(hit, pitch_type_collapsed == "breaking")
 p <- ggplot(hit, aes(px, pz, shape = pitch_type_collapsed))
 
 # add in customized axis and legend formatting and labels
-p <- p + scale_x_continuous(limits = c(-3,3)) + 
+p <- p + scale_x_continuous(limits = c(-3,3)) +
   scale_y_continuous(limits = c(0,5)) + 
   annotate("rect", xmin = -1, xmax = 1, ymin = mean(hit$sz_bot), ymax = mean(hit$sz_top), color = "black", alpha = 0) + 
   labs(title = "Jose Bautista HRs, 2010") + 
@@ -500,4 +500,23 @@ Q2_table <- Q2 %>% left_join(game) %>%
   arrange(desc(start_speed)) %>%
   slice(1:20)
 Q2_table
+
+#Q3 - they are doing some cleaning I don't know about
+Q3 <- dbGetQuery(db, "SELECT a.pitcher_name, a.num, a.gameday_link, a.date,
+                      p.pitch_type, r.event
+                      FROM atbat a
+                      JOIN pitch p ON a.gameday_link = p.gameday_link AND a.num = p.num
+                      JOIN runner r ON a.gameday_link = r.gameday_link AND r.num = p.num
+                      WHERE a.date >= 2008 AND a.date < 2012")
+
+Q3_table <- Q3 %>% left_join(game) %>%
+  filter(game_type == "R") %>%
+  filter(event %in% c("Caught Stealing 2B","Stolen Base 2B", "Picked off stealing 2B")) %>%
+  filter(!is.na(pitch_type)) %>%
+  mutate(fastball = ifelse(pitch_type %in% c("FA", "FF", "FT"), 1, 0)) %>%
+  mutate(fastball = ifelse(pitch_type %in% c("PO", "IN", "UN", "AB"), NA, fastball)) %>%
+  mutate(sb = ifelse(event == "Stolen Base 2B",1,0)) %>%
+  group_by(fastball) %>%
+  summarise(sb_per = mean(sb, na.rm = TRUE))
+Q3_table
 
